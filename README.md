@@ -4,6 +4,8 @@ This is a framework I'm using to integrate sensors around my house.  Each sensor
 
 One node is the gateway.  It is connected to a computer (a Raspberry Pi in my case) via USB.  The computer runs the included node.js script, which interprets the incoming sensor messages from the nodes and sends them out via MQTT to the HA system (I use OpenHAB).  It also can subscribe to MQTT topics and send commands back to the nodes.
 
+The Arduino sketches are based heavily on the Moteino example code.
+
 ## Included Programs
 
 All of the Arduino sketches require a 'settings.h' file customized for your network.  The settings.h file must be the same for all sketches.  Make a copy of the settings.h-dist file called settings.h, edit it to your specifications, and copy it into each of the sketch directories.  
