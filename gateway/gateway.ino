@@ -22,7 +22,10 @@ void setup() {
 }
 
 void loop() {
-  //process any serial input
+  /*
+   * Deal with any incoming data on serial (from computer).
+   * Incoming 'commands' must be separated by semicolan
+   */
   if (Serial.available() > 0) {
     char input = Serial.read();
     if ((input == ';') || (serialIdx == 79)) {
@@ -32,7 +35,11 @@ void loop() {
     }
   }
 
+  /* 
+   * Deal with incoming data on the radio (from other nodes)
+   */
   if (radio.receiveDone()) {
+    // When receive finishes, output ID and data
     Serial.print(radio.SENDERID, DEC);
     Serial.print(":");
     for (byte i = 0; i < radio.DATALEN; i++)
@@ -46,10 +53,14 @@ void loop() {
   }
 }
 
+/*
+ * Process a serial command
+ */
 void processSerial() {
   if (strlen(serialBuf) == 0)
     return;
 
+  // Parse out the destination node id and send the data to that node
   char *separator = strchr(serialBuf, '|');
   if (separator != 0) {
     *separator = 0;
@@ -61,6 +72,7 @@ void processSerial() {
       Serial.println("ERR:Not sending to self");
     }
   }
+  // Zero the buffer back out
   memset(serialBuf, 0, sizeof(serialBuf));
   serialIdx = 0;
 }
