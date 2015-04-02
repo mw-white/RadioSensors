@@ -6,32 +6,41 @@
 #include <DallasTemperature.h>
 #include "settings.h"
 
-#define NODEID    2
+#define NODEID    2   // Every node must have a unique ID
 #define ACK_TIME  30
 
-const int nGarageSensorPin = 14; /* 4pin 1/2 */
-const int sGarageSensorPin = 15; /* 4pin 3/4 */
-const int nGarageOpenerPin = 16; /* Yellow */
-const int sGarageOpenerPin = 17; /* Green */
+/* Arduino pin assignments */
+const int nGarageSensorPin = 14;
+const int sGarageSensorPin = 15;
+const int nGarageOpenerPin = 16;
+const int sGarageOpenerPin = 17;
 
+// State variables
 int nGarageState = 0;
 int nGarageLastState = -1;
 int sGarageState = 0;
 int sGarageLastState = -1;
-unsigned int garageCycleLength = 700;
 int nGarageOpenerState = 0;
 int sGarageOpenerState = 0;
-unsigned long updateInterval = 30000;
-unsigned long tempUpdateInterval = 20000;
 float insideTemp = -1;
 float outsideTemp = 4.5;
+
+// How long (ms) does a "press" last to open the garage doors?
+unsigned int garageCycleLength = 700;
+// How often (ms) to send status updates to gateway
+unsigned long updateInterval = 30000;
+// How often (ms) to update temperature readings
+unsigned long tempUpdateInterval = 20000;
+
+// Set up 1 wire bus
 OneWire  ds(4);  // on pin 4 (a 4.7K resistor is necessary)
 DallasTemperature sensors(&ds);
 
+// DS18B20 sensor addresses
 DeviceAddress insideThermometer = { 0x28, 0xFF, 0x01, 0x67, 0x65, 0x14, 0x01, 0x8A };
 DeviceAddress outsideThermometer = { 0x28, 0xff, 0x83, 0x64, 0x65, 0x14, 0x01, 0x4A };
 
-
+// Timers
 elapsedMillis nGarageOpenerElapsed;
 elapsedMillis sGarageOpenerElapsed;
 elapsedMillis updateElapsed;
@@ -64,7 +73,7 @@ void loop()
   nGarageState = digitalRead(nGarageSensorPin);
   sGarageState = digitalRead(sGarageSensorPin);
 
-  // See if there's an incoming command
+  // Serial for debugging - take this out later
   if (Serial.available() > 0) {
     char input = Serial.read();
     if (input == 'q') // q - query current values
@@ -76,7 +85,7 @@ void loop()
         nGarageOpenerElapsed = 0;
       }
     }
-    if (input == 's') { // n - trigger north door
+    if (input == 's') { // s - trigger south door
       if (sGarageOpenerState == 0) {  // ignore if we're already opening
         sGarageOpenerState = 1;
         digitalWrite(sGarageOpenerPin,HIGH);
@@ -85,6 +94,9 @@ void loop()
     }
   }
   
+  /*
+   * See if there's data in from the radio
+   */
   if (radio.receiveDone()) {
     if (radio.SENDERID == GATEWAYID) {
       for (byte i=0; i<radio.DATALEN; i++) {
@@ -114,11 +126,20 @@ void loop()
     }
   }
 
+  /* 
+   * 1-wire temperature sensors take a while to read.  We don't need to
+   * refresh the temperatures every time through the loop - only check
+   * every 'tempUpdateInterval' ms.
+   */
   if (tempUpdate > tempUpdateInterval) {
     updateTemperatures();
   }
   
-  // If anything has changed, send the status (add a status update every x seconds)
+  /*
+   * If the garage sensors have change, send an update immediately.
+   * If 'updateInterval' ms have elapsed since last update, send an
+   * update anyway.
+   */
   if ((nGarageState != nGarageLastState) || 
       (sGarageState != sGarageLastState) ||
       (updateElapsed > updateInterval)) {
@@ -127,7 +148,11 @@ void loop()
     sGarageLastState = sGarageState;
   }
 
-  // If we're pressing the door opener, check timeouts
+  /*
+   * If one of the garage door opener relays is "pressed", check how
+   * long it's been, and turn them back off when 'garageCycleLength' ms
+   * has passed.
+   */
   if ((nGarageOpenerState == 1) && (nGarageOpenerElapsed > garageCycleLength)) {
     nGarageOpenerState = 0;
     digitalWrite(nGarageOpenerPin,LOW);
@@ -140,6 +165,10 @@ void loop()
   delay(10);
 }
 
+/*
+ * Poll the DS18B20 sensors on the 1wire bus and update the local
+ * temperature variables.
+ */
 void updateTemperatures() {
   tempUpdate = 0;
   sensors.requestTemperatures();
@@ -149,6 +178,9 @@ void updateTemperatures() {
   outsideTemp = tempC;
 }
 
+/*
+ * Send the current state to the gateway node
+ */
 void outputStatus() {
   char buffer[60];
   char insideStr[10];
